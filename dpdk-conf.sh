@@ -22,4 +22,6 @@ mkdir -p /mnt/huge
 grep -s '/mnt/huge' /proc/mounts > /dev/null
 if [ $? -ne 0 ] ; then
         mount -t hugetlbfs nodev /mnt/huge
-fi  
+fi 
+
+cd -

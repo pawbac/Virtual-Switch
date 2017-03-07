@@ -11,7 +11,7 @@ include $(RTE_SDK)/mk/rte.vars.mk
 APP = dpdk-switch
 
 # all source are stored in SRCS-y
-SRCS-y := src/main.c
+SRCS-y := main.c port.c switch.c
 
 CFLAGS += -O3
 CFLAGS += $(WERROR_FLAGS)
