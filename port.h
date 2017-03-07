@@ -4,9 +4,8 @@
 #include <stddef.h>
 
 #include <rte_ethdev.h>
-#include <rte_malloc.h>
 #include <rte_mempool.h>
-
+#include <rte_ring.h>
 
 #define MAX_PKT_BURST 32
 #define BURST_TX_DRAIN_US 100 /* TX drain every ~100us */
@@ -27,9 +26,13 @@ static const struct rte_eth_conf port_conf = {
 
 struct Port {
     uint8_t port_id;
-    struct rte_eth_dev_tx_buffer *tx_buffer;
-    /* MAC address */
+	/* MAC address */
     struct ether_addr ether_addr;
+
+    struct rte_eth_dev_tx_buffer *tx_buffer;
+
+	struct rte_ring *rx_ring;
+	struct rte_ring *tx_ring;
 
     /* Statistics */
     uint64_t total_packets_dropped;
@@ -38,5 +41,6 @@ struct Port {
 };
 
 struct Port* port_init(uint8_t port_id, struct rte_mempool *mb_pool);
+void port_stop(struct Port *port);
 
 #endif /* PORT_H */

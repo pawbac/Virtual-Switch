@@ -46,7 +46,7 @@
 
 static volatile bool force_quit;
 
-/* Took from L2FWD DPDK example
+/* Taken from L2FWD DPDK example
  * handles the Unix signals from user
 */
 static void signal_handler(int signum)
@@ -72,8 +72,7 @@ int switch_init(struct Switch *s, int argc, char **argv) {
 	signal(SIGTERM, signal_handler);
 
 	/* Create the mbuf pool */
-	s->pktmbuf_pool = rte_pktmbuf_pool_create("mbuf_pool", NB_MBUF, MEMPOOL_CACHE_SIZE, 0,
-	RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+	s->pktmbuf_pool = rte_pktmbuf_pool_create("mbuf_pool", NB_MBUF, MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 	if (s->pktmbuf_pool == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot init mbuf pool\n");
 
@@ -88,6 +87,7 @@ int switch_init(struct Switch *s, int argc, char **argv) {
 		struct Port *port;
 		port = port_init(port_id, s->pktmbuf_pool);
 		s->ports[port_id] = port;
+		s->nb_ports = port_id + 1;
 	}	
 
 	return ret;
@@ -116,10 +116,7 @@ void switch_stop(struct Switch *s) {
 
 	/* Stop and disable ports */
 	for (port_id = 0; port_id < s->nb_ports; port_id++) {
-		printf("Closing port %d...", port_id);
-		rte_eth_dev_stop(port_id);
-		rte_eth_dev_close(port_id);
-		printf(" Done\n");
+		port_stop(s->ports[port_id]);
 	}
 	printf("Bye...\n");
 }

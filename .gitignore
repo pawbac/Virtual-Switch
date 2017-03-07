@@ -38,3 +38,6 @@
 
 #VS Code
 *.json
+
+# Old
+main_old.c
