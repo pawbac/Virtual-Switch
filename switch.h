@@ -18,10 +18,10 @@ struct Switch {
 
 int switch_parse_args (void);
 int switch_init(struct Switch *s, int argc, char **argv);
-int switch_run(void);
+int switch_run(struct Switch *s);
 void switch_stop(struct Switch *s);
-int launch_rx_loop(void *dummy);
-int launch_tx_loop(void *dummy);
+int launch_rx_loop(struct Switch *s);
+int launch_tx_loop(struct Switch *s);
 
 //extern struct Switch sw;
 

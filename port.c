@@ -28,7 +28,7 @@ struct Port* port_init(uint8_t port_id, struct rte_mempool *mb_pool) {
 
     struct Port *port = malloc(sizeof(struct Port));
 
-    printf("Initializing port %u... \n", port_id);
+    printf("Initializing port %u...", port_id);
 
     /* Assign the port number */
     port->port_id = port_id;
@@ -64,7 +64,7 @@ struct Port* port_init(uint8_t port_id, struct rte_mempool *mb_pool) {
 
     /* Initialise RX ring */
     snprintf(ring_name, 10, "rx_ring_%u", port_id);
-    port->rx_ring = rte_ring_create(ring_name, RX_RING_SIZE, NULL, NULL);
+    port->rx_ring = rte_ring_create(ring_name, RX_RING_SIZE, rte_eth_dev_socket_id(port_id), RING_F_SP_ENQ || RING_F_SC_DEQ);
     if (port->rx_ring == NULL)
             rte_exit(EXIT_FAILURE, "Cannot initialise RX ring on port %u\n", (unsigned) port_id);
 
@@ -75,7 +75,7 @@ struct Port* port_init(uint8_t port_id, struct rte_mempool *mb_pool) {
 
     /* Initialise TX ring */
     snprintf(ring_name, 10, "tx_ring_%u", port_id);
-    port->tx_ring = rte_ring_create(ring_name, RX_RING_SIZE, NULL, NULL);
+    port->tx_ring = rte_ring_create(ring_name, RX_RING_SIZE, rte_eth_dev_socket_id(port_id), RING_F_SP_ENQ || RING_F_SC_DEQ);
     if (port->rx_ring == NULL)
             rte_exit(EXIT_FAILURE, "Cannot initialise TX ring on port %u\n", (unsigned) port_id);
 
@@ -89,7 +89,7 @@ struct Port* port_init(uint8_t port_id, struct rte_mempool *mb_pool) {
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "rte_eth_dev_start:err=%d, port=%u\n", ret, (unsigned) port_id);
 
-    printf("done: \n");
+    printf("done!\n");
 
 	/* Enable promiscuous mode on a port */
     rte_eth_promiscuous_enable(port_id);

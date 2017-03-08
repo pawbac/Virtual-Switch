@@ -52,7 +52,7 @@ static volatile bool force_quit;
 static void signal_handler(int signum)
 {
 	if (signum == SIGINT || signum == SIGTERM) {
-		printf("\n\nSignal %d received, preparing to exit...\n",
+		printf("\n\nSignal %d received, preparing to exit...\n\n",
 				signum);
 		force_quit = true;
 	}
@@ -93,10 +93,10 @@ int switch_init(struct Switch *s, int argc, char **argv) {
 	return ret;
 }
 
-int switch_run (void) {
+int switch_run (struct Switch *sw) {
 	/* Launch tasks on isolated cores (requires at least 3 cores; 0 is MASTER) */
-	rte_eal_remote_launch(launch_rx_loop, NULL, 1);
-	rte_eal_remote_launch(launch_tx_loop, NULL, 2);
+	rte_eal_remote_launch(launch_rx_loop, sw, 1);
+	rte_eal_remote_launch(launch_tx_loop, sw, 2);
 
 	#if DEBUG
 	int lcore_id;
@@ -118,25 +118,79 @@ void switch_stop(struct Switch *s) {
 	for (port_id = 0; port_id < s->nb_ports; port_id++) {
 		port_stop(s->ports[port_id]);
 	}
-	printf("Bye...\n");
+	printf("\nBye...\n");
 }
 
 int switch_parse_args (void) {
 	return 0;
 }
 
-int launch_rx_loop(void *dummy) {
+int launch_rx_loop(struct Switch *sw) {
+	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
+	unsigned port_id = 0;
+	unsigned recv = 0;
+	unsigned enqueued = 0;
+
 	while (!force_quit) {
-		// TODO: RX LOOP
+		for (port_id = 0; port_id <= (sw->nb_ports - 1); port_id++) {
+			recv = rte_eth_rx_burst((uint8_t) port_id, 0, pkts_burst, MAX_PKT_BURST);
+
+			if (recv) {
+				/* Enque packets to the RX ring */
+				enqueued = rte_ring_enqueue_burst(sw->ports[port_id]->rx_ring, (void *) pkts_burst, recv);
+
+				sw->ports[port_id]->total_packets_rx += recv;
+
+				#if DEBUG
+				printf("%u packets received\n", recv);
+		
+				uint8_t pkt;
+				struct ether_hdr *eth;
+
+				for (pkt = 0; pkt < recv; pkt++) {
+					eth = rte_pktmbuf_mtod(pkts_burst[pkt], struct ether_hdr *);
+					printf("\tPacket %d from %02X:%02X:%02X:%02X:%02X:%02X\n", pkt,
+															 eth->s_addr.addr_bytes[0],
+															 eth->s_addr.addr_bytes[1],
+															 eth->s_addr.addr_bytes[2],
+															 eth->s_addr.addr_bytes[3],
+															 eth->s_addr.addr_bytes[4],
+															 eth->s_addr.addr_bytes[5]);
+				}
+				printf("%u packets eneueued\n", enqueued);
+				#endif
+			}
+			
+		}
 	}
-	printf("QUIT RX\n");
+
+	#if DEBUG
+	for (port_id = 0; port_id < sw->nb_ports; port_id++) {
+		printf("Packets received on port %u: %u\n", port_id, (unsigned) sw->ports[port_id]->total_packets_rx);
+		rte_ring_dump(stdout, sw->ports[port_id]->rx_ring);
+	}
+	#endif
+
 	return 0;
 }
 
-int launch_tx_loop(void *dummy) {
+int launch_tx_loop(struct Switch *sw) {
+	unsigned port_id = 0, sent;
+
 	while (!force_quit) {
-		// TODO: TX LOOP
+		for (port_id = 0; port_id <= 1; port_id++) {
+			/* Get packets from the port's queue */
+			//sent = rte_eth_tx_buffer_flush(port_id, 0, sw->ports[port_id]->tx_buffer);
+			//if (sent)
+				sw->ports[port_id]->total_packets_tx++;//= sent;
+		}
 	}
-	printf("QUIT TX\n");
+
+	#if DEBUG
+	for (port_id = 0; port_id < sw->nb_ports; port_id++) {
+		printf("Packets transmitted on port %u: %u\n", port_id, (unsigned) sw->ports[port_id]->total_packets_tx);
+	}
+	#endif
+
 	return 0;
 }
