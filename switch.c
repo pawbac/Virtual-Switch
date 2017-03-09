@@ -49,8 +49,7 @@ static volatile bool force_quit;
 /* Taken from L2FWD DPDK example
  * handles the Unix signals from user
 */
-static void signal_handler(int signum)
-{
+static void signal_handler(int signum) {
 	if (signum == SIGINT || signum == SIGTERM) {
 		printf("\n\nSignal %d received, preparing to exit...\n\n",
 				signum);
@@ -176,13 +175,38 @@ int launch_rx_loop(struct Switch *sw) {
 
 int launch_tx_loop(struct Switch *sw) {
 	unsigned port_id = 0, sent;
+	unsigned dequeued;
+	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 
 	while (!force_quit) {
-		for (port_id = 0; port_id <= 1; port_id++) {
-			/* Get packets from the port's queue */
-			//sent = rte_eth_tx_buffer_flush(port_id, 0, sw->ports[port_id]->tx_buffer);
-			//if (sent)
-				sw->ports[port_id]->total_packets_tx++;//= sent;
+		for (port_id = 0; port_id <= (sw->nb_ports - 1); port_id++) {
+			/* Dequeue packets from port's TX ring */
+			dequeued = rte_ring_dequeue_burst(sw->ports[port_id]->rx_ring, (void *) pkts_burst, MAX_PKT_BURST); // FIXME: change to tx_ring
+			
+			if (dequeued) {
+				sent = rte_eth_tx_burst(port_id, 0, pkts_burst, dequeued);
+
+				sw->ports[port_id]->total_packets_tx += sent;
+
+				#if DEBUG
+				printf("%u packets sent\n", sent);
+		
+				uint8_t pkt;
+				struct ether_hdr *eth;
+
+				for (pkt = 0; pkt < sent; pkt++) {
+					eth = rte_pktmbuf_mtod(pkts_burst[pkt], struct ether_hdr *);
+					printf("\tPacket %d from %02X:%02X:%02X:%02X:%02X:%02X\n", pkt,
+															 eth->s_addr.addr_bytes[0],
+															 eth->s_addr.addr_bytes[1],
+															 eth->s_addr.addr_bytes[2],
+															 eth->s_addr.addr_bytes[3],
+															 eth->s_addr.addr_bytes[4],
+															 eth->s_addr.addr_bytes[5]);
+				}
+				printf("%u packets dequeued\n", dequeued);
+				#endif
+			}
 		}
 	}
 
