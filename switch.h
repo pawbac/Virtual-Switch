@@ -8,7 +8,7 @@
 #define DEBUG 1
 
 /* TODO: count number of ports or make a list */
-#define MAX_NB_PORTS 2
+#define MAX_NB_PORTS 3
 
 struct Switch {
 	uint8_t nb_ports;

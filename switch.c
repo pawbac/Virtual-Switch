@@ -18,6 +18,8 @@
 #include <signal.h>
 #include <stdbool.h>
 
+#include <arpa/inet.h>
+
 #include <rte_common.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
@@ -119,7 +121,8 @@ void switch_stop(struct Switch *s) {
 	int port_id;
 
 	/* Stop and disable ports */
-	for (port_id = 0; port_id < s->nb_ports; port_id++) {
+	for (port_id = 0; port_id <= (unsigned) (s->nb_ports - 1); port_id++) {
+		printf("Port_id: %d\n", port_id);
 		port_stop(s->ports[port_id]);
 	}
 
@@ -148,9 +151,7 @@ int launch_rx_loop(struct Switch *sw) {
 
 				sw->ports[port_id]->total_packets_rx += recv;
 
-				#if DEBUG
-				printf("%u packets received\n", recv);
-		
+				#if DEBUG		
 				uint8_t pkt;
 				struct ether_hdr *eth;
 
@@ -164,7 +165,6 @@ int launch_rx_loop(struct Switch *sw) {
 															 eth->s_addr.addr_bytes[4],
 															 eth->s_addr.addr_bytes[5]);
 				}
-				printf("%u packets eneueued\n", enqueued);
 				#endif
 			}
 			
@@ -212,14 +212,13 @@ int launch_tx_loop(struct Switch *sw) {
 															 eth->s_addr.addr_bytes[4],
 															 eth->s_addr.addr_bytes[5]);
 				}
-				printf("%u packets dequeued\n", dequeued);
 				#endif
 			}
 		}
 	}
 
 	#if DEBUG
-	for (port_id = 0; port_id < sw->nb_ports; port_id++) {
+	for (port_id = 0; port_id <= (unsigned) (sw->nb_ports - 1); port_id++) {
 		printf("Packets transmitted on port %u: %u\n", port_id, (unsigned) sw->ports[port_id]->total_packets_tx);
 	}
 	#endif
@@ -236,41 +235,64 @@ int launch_forward_loop(struct Switch *sw) {
 		for (port_id = 0; port_id <= (unsigned) (sw->nb_ports - 1); port_id++) {
 			/* Dequeue packets from port's RX ring */
 			dequeued = rte_ring_dequeue_burst(sw->ports[port_id]->rx_ring, (void *) pkts_burst, MAX_PKT_BURST);
-			
+
 			if (dequeued) {
 				unsigned pkt;
+				
 				for (pkt = 0; pkt < dequeued; pkt++) {
 					unsigned dst_port;
+					int port_brd;
+					int ret;
 					struct ether_hdr *eth_hdr;
 
-					/* Get MAC address and port and put them into the MAC Address Table if not existing TODO: look up if existing */
+					/* Export packet's header */
 					eth_hdr = rte_pktmbuf_mtod(pkts_burst[pkt], struct ether_hdr *);
-					mac_addr_tbl_add_route(sw, &eth_hdr->s_addr, port_id);
 
-					printf("\tPacket from %02X:%02X:%02X:%02X:%02X:%02X addedd to MAC Address Table\n",
-															 eth_hdr->s_addr.addr_bytes[0],
-															 eth_hdr->s_addr.addr_bytes[1],
-															 eth_hdr->s_addr.addr_bytes[2],
-															 eth_hdr->s_addr.addr_bytes[3],
-															 eth_hdr->s_addr.addr_bytes[4],
-															 eth_hdr->s_addr.addr_bytes[5]);
+					#ifdef DEBUG
+					char src_buf[ETHER_ADDR_FMT_SIZE];
+					char dst_buf[ETHER_ADDR_FMT_SIZE];
 
-					/* Get destination port of the packet related to packet's destination address */
-					mac_addr_tbl_lookup(sw, &eth_hdr->d_addr, &dst_port);
+					ether_format_addr(src_buf, ETHER_ADDR_FMT_SIZE, &eth_hdr->s_addr);
+					ether_format_addr(dst_buf, ETHER_ADDR_FMT_SIZE, &eth_hdr->d_addr);
 
-					printf("\tPacket to %02X:%02X:%02X:%02X:%02X:%02X to be sen on port %u\n",
-															 eth_hdr->s_addr.addr_bytes[0],
-															 eth_hdr->s_addr.addr_bytes[1],
-															 eth_hdr->s_addr.addr_bytes[2],
-															 eth_hdr->s_addr.addr_bytes[3],
-															 eth_hdr->s_addr.addr_bytes[4],
-															 eth_hdr->s_addr.addr_bytes[5],
-															 dst_port);
+					printf("Packet type %#06x from %s to %s\n", ntohs(eth_hdr->ether_type), src_buf, dst_buf); // TODO: decide if use ntohs or htons
+					#endif /* DEBUG */
 
-					/* If ARP - broadcast */
+					/* Check if packet's source address exists in MAC Address Table */
+					ret = mac_addr_tbl_lookup(sw, &eth_hdr->s_addr);
 
-					/* Enqueue packet to destination port's TX queue */
-					enqueued = rte_ring_enqueue_burst(sw->ports[dst_port]->tx_ring, (void *) pkts_burst, 1); // check if next packets also for this port and send them all at the same time - efficient?
+					switch (ret) {
+						case -EINVAL:
+							printf("Invalid parameters\n");
+							break;
+						
+						/* MAC address not found, add it */
+						case -ENOENT:
+							mac_addr_tbl_add_route(sw, &eth_hdr->s_addr, port_id); // TODO: Time - for how long
+					}
+
+					/* Get the destination port based on packet's destination address */
+					ret = mac_addr_tbl_lookup_data(sw, &eth_hdr->d_addr, &dst_port);
+					printf("dst_port: %u\n", dst_port);
+
+					switch (ret) {
+						case -EINVAL:
+							printf("Invalid parameters\n");
+							break;
+						
+						/* MAC address not found, send everywhere*/
+						case -ENOENT:
+							// TODO: broadcast if FF:FF:FF:FF:FF or not in MAC Address Table
+							for (port_brd = 0; port_brd <= (unsigned) (sw->nb_ports - 1); port_brd++) {
+								enqueued = rte_ring_enqueue_burst(sw->ports[port_brd]->tx_ring, (void *) pkts_burst, 1);
+							}
+							break;
+
+						default:
+							/* Enqueue packet to the destination port's TX queue */
+							enqueued = rte_ring_enqueue_burst(sw->ports[dst_port]->tx_ring, (void *) pkts_burst, 1); // check if next packets also for this port and send them all at the same time - efficient?
+							break;
+					}
 				}
 			}
 		}

@@ -5,16 +5,18 @@
 #include <rte_hash.h>
 
 int mac_addr_tbl_init (struct Switch *sw) {
-    /* Creates a new hash tbl */
+    /* Create a new hash table. */
     sw->mac_addr_tbl = rte_hash_create(&hash_params);
 
-    printf("Error: %s", rte_errno);
+    if (sw->mac_addr_tbl == NULL) rte_exit(EXIT_FAILURE, "Unable to create the hashmap");
     return 0;
 }
 
 int mac_addr_tbl_add_route (struct Switch *sw, struct ether_addr *mac_addr, unsigned src_port) {
-    int ret = rte_hash_add_key_data(sw->mac_addr_tbl, (void *) mac_addr, src_port);
+    /* Add a key-value pair to an existing hash table. */
+    int ret = rte_hash_add_key_data(sw->mac_addr_tbl, (void *) mac_addr, (void *) src_port);
 
+    //printf("rte_hash_add_key_data return value: %d\n", ret);
     if (!ret)
         printf("Added new device (%02X:%02X:%02X:%02X:%02X:%02X) at port %u\n",
 															 mac_addr->addr_bytes[0],
@@ -28,10 +30,19 @@ int mac_addr_tbl_add_route (struct Switch *sw, struct ether_addr *mac_addr, unsi
     return ret;
 }
 
-int mac_addr_tbl_lookup (struct Switch *sw, struct ether_addr *mac_addr, unsigned *dst_port) {
-    int ret = rte_hash_lookup_data(sw->mac_addr_tbl, mac_addr, dst_port);
+int mac_addr_tbl_lookup_data (struct Switch *sw, struct ether_addr *mac_addr, unsigned *dst_port) {
+    /* Find a key-value pair in the hash table. */
+    /* returns index where key is stored */
+    int ret = rte_hash_lookup_data(sw->mac_addr_tbl, mac_addr, (void **) dst_port);
 
     /* TODO: use rte_hash_lookup_bulk_data when possible */
+    return ret;
+}
+
+int mac_addr_tbl_lookup (struct Switch *sw, struct ether_addr *mac_addr) {
+    /* Check if key in hash table. */
+    int ret = rte_hash_lookup(sw->mac_addr_tbl, mac_addr);
+
     return ret;
 }
 
