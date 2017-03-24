@@ -19,13 +19,13 @@ int mac_addr_tbl_add_route (struct Switch *sw, struct ether_addr *mac_addr, unsi
     //printf("rte_hash_add_key_data return value: %d\n", ret);
     if (!ret)
         printf("Added new device (%02X:%02X:%02X:%02X:%02X:%02X) at port %u\n",
-															 mac_addr->addr_bytes[0],
-															 mac_addr->addr_bytes[1],
-															 mac_addr->addr_bytes[2],
-															 mac_addr->addr_bytes[3],
-															 mac_addr->addr_bytes[4],
-															 mac_addr->addr_bytes[5],
-                                                             src_port);
+                                                                                mac_addr->addr_bytes[0],
+                                                                                mac_addr->addr_bytes[1],
+                                                                                mac_addr->addr_bytes[2],
+                                                                                mac_addr->addr_bytes[3],
+                                                                                mac_addr->addr_bytes[4],
+                                                                                mac_addr->addr_bytes[5],
+                                                                                src_port);
 
     return ret;
 }

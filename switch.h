@@ -11,10 +11,10 @@
 #define MAX_NB_PORTS 3
 
 struct Switch {
-	uint8_t nb_ports;
+    uint8_t nb_ports;
     struct rte_mempool *pktmbuf_pool;
-	struct Port *ports[MAX_NB_PORTS];
-	struct rte_hash *mac_addr_tbl;
+    struct Port *ports[MAX_NB_PORTS];
+    struct rte_hash *mac_addr_tbl;
 };
 
 int switch_parse_args (void);
