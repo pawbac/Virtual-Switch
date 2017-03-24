@@ -58,7 +58,7 @@ struct Port* port_init(uint8_t port_id, struct rte_mempool *mb_pool) {
 
     rte_eth_tx_buffer_init(port->tx_buffer, MAX_PKT_BURST);
 
-    ret = rte_eth_tx_buffer_set_err_callback(port->tx_buffer, rte_eth_tx_buffer_count_callback, port->total_packets_dropped);
+    ret = rte_eth_tx_buffer_set_err_callback(port->tx_buffer, rte_eth_tx_buffer_count_callback, &port->total_packets_dropped);
     if (ret < 0)
             rte_exit(EXIT_FAILURE, "Cannot set error callback for tx buffer on port %u\n", (unsigned) port_id);
 

@@ -16,8 +16,8 @@ static const struct rte_hash_parameters hash_params = {
 };
 
 int mac_addr_tbl_init (struct Switch *sw);
-int mac_addr_tbl_add_route (struct Switch *sw, struct ether_addr *mac_addr, unsigned src_port);
-int mac_addr_tbl_lookup_data (struct Switch *sw, struct ether_addr *mac_addr, unsigned *dst_port);
+int mac_addr_tbl_add_route (struct Switch *sw, struct ether_addr *mac_addr, uint8_t src_port);
+int mac_addr_tbl_lookup_data (struct Switch *sw, struct ether_addr *mac_addr, uint8_t *dst_port);
 int mac_addr_tbl_lookup (struct Switch *sw, struct ether_addr *mac_addr);
 void mac_addr_tbl_free (struct Switch *sw);
 

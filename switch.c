@@ -100,12 +100,12 @@ int switch_init(struct Switch *s, int argc, char **argv) {
 
 int switch_run (struct Switch *sw) {
     /* Launch tasks on isolated cores (requires at least 3 cores; 0 is MASTER) */
-    rte_eal_remote_launch(launch_rx_loop, sw, 1);
-    rte_eal_remote_launch(launch_tx_loop, sw, 2);
-    rte_eal_remote_launch(launch_forward_loop, sw, 3);	
+    rte_eal_remote_launch((int (*)(void*)) launch_rx_loop, sw, 1);
+    rte_eal_remote_launch((int (*)(void*)) launch_tx_loop, sw, 2);
+    rte_eal_remote_launch((int (*)(void*)) launch_fwd_loop, sw, 3);	
 
     #if DEBUG
-    int lcore_id;
+    uint8_t lcore_id;
     for (lcore_id = 0 ;lcore_id < 4; lcore_id++) {
         printf("Lcore %d is %s\n", lcore_id, rte_lcore_is_enabled(lcore_id)? "enabled" : "disabled");
     }
@@ -118,10 +118,10 @@ int switch_run (struct Switch *sw) {
 }
 
 void switch_stop(struct Switch *s) {
-    int port_id;
+    uint8_t port_id;
 
     /* Stop and disable ports */
-    for (port_id = 0; port_id <= (unsigned) (s->nb_ports - 1); port_id++) {
+    for (port_id = 0; port_id < s->nb_ports; port_id++) {
         printf("Port_id: %d\n", port_id);
         port_stop(s->ports[port_id]);
     }
@@ -226,13 +226,13 @@ int launch_tx_loop(struct Switch *sw) {
     return 0;
 }
 
-int launch_forward_loop(struct Switch *sw) {
-    unsigned port_id = 0;
+int launch_fwd_loop(struct Switch *sw) {
+    uint8_t port_id = 0;
     unsigned dequeued, enqueued;
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 
     while (!force_quit) {
-        for (port_id = 0; port_id <= (unsigned) (sw->nb_ports - 1); port_id++) {
+        for (port_id = 0; port_id < sw->nb_ports; port_id++) {
             /* Dequeue packets from port's RX ring */
             dequeued = rte_ring_dequeue_burst(sw->ports[port_id]->rx_ring, (void *) pkts_burst, MAX_PKT_BURST);
 
@@ -240,8 +240,8 @@ int launch_forward_loop(struct Switch *sw) {
                 unsigned pkt;
                 
                 for (pkt = 0; pkt < dequeued; pkt++) {
-                    unsigned dst_port;
-                    int port_brd;
+                    uint8_t dst_port;
+                    uint8_t port_brd;
                     int ret;
                     struct ether_hdr *eth_hdr;
 
@@ -280,14 +280,15 @@ int launch_forward_loop(struct Switch *sw) {
                             printf("Invalid parameters\n");
                             break;
                         
-                        /* MAC address not found, send everywhere*/
+                        /* MAC address not found (TODO: drop?), if FF:FF:FF:FF:FF broadast */
                         case -ENOENT:
                             // TODO: broadcast if FF:FF:FF:FF:FF or not in MAC Address Table
-                            for (port_brd = 0; port_brd <= (unsigned) (sw->nb_ports - 1); port_brd++) {
+                            for (port_brd = 0; port_brd < sw->nb_ports - 1; port_brd++) {
                                 enqueued = rte_ring_enqueue_burst(sw->ports[port_brd]->tx_ring, (void *) pkts_burst, 1);
                             }
                             break;
 
+                        /* MAC address in MAC Address Table */
                         default:
                             /* Enqueue packet to the destination port's TX queue */
                             enqueued = rte_ring_enqueue_burst(sw->ports[dst_port]->tx_ring, (void *) pkts_burst, 1); // check if next packets also for this port and send them all at the same time - efficient?

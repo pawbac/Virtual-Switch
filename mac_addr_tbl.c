@@ -12,28 +12,27 @@ int mac_addr_tbl_init (struct Switch *sw) {
     return 0;
 }
 
-int mac_addr_tbl_add_route (struct Switch *sw, struct ether_addr *mac_addr, unsigned src_port) {
+int mac_addr_tbl_add_route (struct Switch *sw, struct ether_addr *mac_addr, uint8_t port) {
     /* Add a key-value pair to an existing hash table. */
-    int ret = rte_hash_add_key_data(sw->mac_addr_tbl, (void *) mac_addr, (void *) src_port);
+    int ret = rte_hash_add_key_data(sw->mac_addr_tbl, mac_addr, &port);
 
-    //printf("rte_hash_add_key_data return value: %d\n", ret);
     if (!ret)
         printf("Added new device (%02X:%02X:%02X:%02X:%02X:%02X) at port %u\n",
-                                                                                mac_addr->addr_bytes[0],
-                                                                                mac_addr->addr_bytes[1],
-                                                                                mac_addr->addr_bytes[2],
-                                                                                mac_addr->addr_bytes[3],
-                                                                                mac_addr->addr_bytes[4],
-                                                                                mac_addr->addr_bytes[5],
-                                                                                src_port);
+                mac_addr->addr_bytes[0],
+                mac_addr->addr_bytes[1],
+                mac_addr->addr_bytes[2],
+                mac_addr->addr_bytes[3],
+                mac_addr->addr_bytes[4],
+                mac_addr->addr_bytes[5],
+                port);
 
     return ret;
 }
 
-int mac_addr_tbl_lookup_data (struct Switch *sw, struct ether_addr *mac_addr, unsigned *dst_port) {
+int mac_addr_tbl_lookup_data (struct Switch *sw, struct ether_addr *mac_addr, uint8_t *port) {
     /* Find a key-value pair in the hash table. */
     /* returns index where key is stored */
-    int ret = rte_hash_lookup_data(sw->mac_addr_tbl, mac_addr, (void **) dst_port);
+    int ret = rte_hash_lookup_data(sw->mac_addr_tbl, mac_addr, (void **) port);
 
     /* TODO: use rte_hash_lookup_bulk_data when possible */
     return ret;
