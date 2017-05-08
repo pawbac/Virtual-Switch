@@ -1,6 +1,7 @@
-#include "switch.h"
-#include "port.h"
 #include "mac_addr_tbl.h"
+#include "pkt_handling.h"
+#include "port.h"
+#include "switch.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,8 +18,6 @@
 #include <getopt.h>
 #include <signal.h>
 #include <stdbool.h>
-
-#include <arpa/inet.h>
 
 #include <rte_common.h>
 #include <rte_log.h>
@@ -128,108 +127,71 @@ void switch_stop(struct Switch *s) {
 
     /* Free the hash table */
     mac_addr_tbl_free(s);
-    printf("\nBye...\n");
+    printf("\nFinished\n");
 }
 
+/* Parsing arguments from CLI
+ * TODO: e.g. -rx 0x4 -tx 0x12 
+ */
 int switch_parse_args (void) {
     return 0;
 }
 
 int launch_rx_loop(struct Switch *sw) {
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
-    unsigned port_id = 0;
-    unsigned recv = 0;
-    unsigned enqueued = 0;
+    uint8_t port_id;
+    uint8_t recv, enqueued;
 
     while (!force_quit) {
-        for (port_id = 0; port_id <= (unsigned) (sw->nb_ports - 1); port_id++) {
-            recv = rte_eth_rx_burst((uint8_t) port_id, 0, pkts_burst, MAX_PKT_BURST);
+        for (port_id = 0; port_id < sw->nb_ports; port_id++) {
+            recv = rte_eth_rx_burst(port_id, 0, pkts_burst, MAX_PKT_BURST);
 
             if (recv) {
                 /* Enque packets to the RX ring */
                 enqueued = rte_ring_enqueue_burst(sw->ports[port_id]->rx_ring, (void *) pkts_burst, recv);
 
-                sw->ports[port_id]->total_packets_rx += recv;
-
-                #if DEBUG		
-                uint8_t pkt;
-                struct ether_hdr *eth;
-
-                for (pkt = 0; pkt < recv; pkt++) {
-                    eth = rte_pktmbuf_mtod(pkts_burst[pkt], struct ether_hdr *);
-                    printf("\tPacket %d from %02X:%02X:%02X:%02X:%02X:%02X\n", pkt,
-                                                             eth->s_addr.addr_bytes[0],
-                                                             eth->s_addr.addr_bytes[1],
-                                                             eth->s_addr.addr_bytes[2],
-                                                             eth->s_addr.addr_bytes[3],
-                                                             eth->s_addr.addr_bytes[4],
-                                                             eth->s_addr.addr_bytes[5]);
-                }
-                #endif
+                sw->ports[port_id]->total_packets_rx += enqueued;
             }
             
         }
     }
-
-    #if DEBUG
-    for (port_id = 0; port_id < sw->nb_ports; port_id++) {
-        printf("Packets received on port %u: %u\n", port_id, (unsigned) sw->ports[port_id]->total_packets_rx);
-        rte_ring_dump(stdout, sw->ports[port_id]->rx_ring);
-    }
-    #endif
 
     return 0;
 }
 
 int launch_tx_loop(struct Switch *sw) {
-    unsigned port_id = 0, sent;
-    unsigned dequeued;
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
+    uint8_t port_id;
+    uint8_t dequeued, sent;
 
     while (!force_quit) {
-        for (port_id = 0; port_id <= (unsigned) (sw->nb_ports - 1); port_id++) {
+        for (port_id = 0; port_id < sw->nb_ports; port_id++) {
             /* Dequeue packets from port's TX ring */
             dequeued = rte_ring_dequeue_burst(sw->ports[port_id]->tx_ring, (void *) pkts_burst, MAX_PKT_BURST);
-            
+
             if (dequeued) {
-                sent = rte_eth_tx_burst(port_id, 0, pkts_burst, dequeued);
-
-                sw->ports[port_id]->total_packets_tx += sent;
-
                 #if DEBUG
-                printf("%u packets sent\n", sent);
-        
-                uint8_t pkt;
-                struct ether_hdr *eth;
+                struct ether_hdr *eth_hdr;
 
-                for (pkt = 0; pkt < sent; pkt++) {
-                    eth = rte_pktmbuf_mtod(pkts_burst[pkt], struct ether_hdr *);
-                    printf("\tPacket %d from %02X:%02X:%02X:%02X:%02X:%02X\n", pkt,
-                                                             eth->s_addr.addr_bytes[0],
-                                                             eth->s_addr.addr_bytes[1],
-                                                             eth->s_addr.addr_bytes[2],
-                                                             eth->s_addr.addr_bytes[3],
-                                                             eth->s_addr.addr_bytes[4],
-                                                             eth->s_addr.addr_bytes[5]);
-                }
+                eth_hdr = rte_pktmbuf_mtod(pkts_burst[0], struct ether_hdr *);
+                printf("In TX loop: ");
+                pkt_description(eth_hdr);
                 #endif
+                printf("%d packets dequeued at port %d\n", dequeued, port_id);
+                sent = rte_eth_tx_burst(port_id, 0, pkts_burst, dequeued);
+                printf("%d packets sent\n", sent);
+                sw->ports[port_id]->total_packets_tx += sent;
             }
         }
     }
-
-    #if DEBUG
-    for (port_id = 0; port_id <= (unsigned) (sw->nb_ports - 1); port_id++) {
-        printf("Packets transmitted on port %u: %u\n", port_id, (unsigned) sw->ports[port_id]->total_packets_tx);
-    }
-    #endif
 
     return 0;
 }
 
 int launch_fwd_loop(struct Switch *sw) {
-    uint8_t port_id = 0;
-    unsigned dequeued, enqueued;
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
+    uint8_t port_id = 0;
+    uint8_t dequeued, enqueued;
 
     while (!force_quit) {
         for (port_id = 0; port_id < sw->nb_ports; port_id++) {
@@ -237,25 +199,17 @@ int launch_fwd_loop(struct Switch *sw) {
             dequeued = rte_ring_dequeue_burst(sw->ports[port_id]->rx_ring, (void *) pkts_burst, MAX_PKT_BURST);
 
             if (dequeued) {
-                unsigned pkt;
+                uint8_t pkt;
                 
                 for (pkt = 0; pkt < dequeued; pkt++) {
-                    uint8_t dst_port;
-                    uint8_t port_brd;
-                    int ret;
                     struct ether_hdr *eth_hdr;
+                    int ret;
 
                     /* Export packet's header */
                     eth_hdr = rte_pktmbuf_mtod(pkts_burst[pkt], struct ether_hdr *);
 
                     #ifdef DEBUG
-                    char src_buf[ETHER_ADDR_FMT_SIZE];
-                    char dst_buf[ETHER_ADDR_FMT_SIZE];
-
-                    ether_format_addr(src_buf, ETHER_ADDR_FMT_SIZE, &eth_hdr->s_addr);
-                    ether_format_addr(dst_buf, ETHER_ADDR_FMT_SIZE, &eth_hdr->d_addr);
-
-                    printf("Packet type %#06x from %s to %s\n", ntohs(eth_hdr->ether_type), src_buf, dst_buf); // TODO: decide if use ntohs or htons
+                    pkt_description(eth_hdr);
                     #endif /* DEBUG */
 
                     /* Check if packet's source address exists in MAC Address Table */
@@ -271,28 +225,14 @@ int launch_fwd_loop(struct Switch *sw) {
                             mac_addr_tbl_add_route(sw, &eth_hdr->s_addr, port_id); // TODO: Time - for how long
                     }
 
-                    /* Get the destination port based on packet's destination address */
-                    ret = mac_addr_tbl_lookup_data(sw, &eth_hdr->d_addr, &dst_port);
-                    printf("dst_port: %u\n", dst_port);
-
-                    switch (ret) {
-                        case -EINVAL:
-                            printf("Invalid parameters\n");
-                            break;
-                        
-                        /* MAC address not found (TODO: drop?), if FF:FF:FF:FF:FF broadast */
-                        case -ENOENT:
-                            // TODO: broadcast if FF:FF:FF:FF:FF or not in MAC Address Table
-                            for (port_brd = 0; port_brd < sw->nb_ports - 1; port_brd++) {
-                                enqueued = rte_ring_enqueue_burst(sw->ports[port_brd]->tx_ring, (void *) pkts_burst, 1);
-                            }
-                            break;
-
-                        /* MAC address in MAC Address Table */
-                        default:
-                            /* Enqueue packet to the destination port's TX queue */
-                            enqueued = rte_ring_enqueue_burst(sw->ports[dst_port]->tx_ring, (void *) pkts_burst, 1); // check if next packets also for this port and send them all at the same time - efficient?
-                            break;
+                    /* Check if broadcast */
+                    if (is_broadcast_ether_addr(&eth_hdr->d_addr)) {
+                        printf("Broadcast\n");
+                        broadcast(sw, pkts_burst[pkt]);
+                    }
+                    else {
+                        printf("Unicast\n");
+                        unicast(sw, pkts_burst[pkt], eth_hdr);
                     }
                 }
             }

@@ -10,6 +10,7 @@
 #define MAX_PKT_BURST 32
 #define BURST_TX_DRAIN_US 100 /* TX drain every ~100us */
 
+/* From ... */
 static const struct rte_eth_conf port_conf = {
     .rxmode = {
         .split_hdr_size = 0,

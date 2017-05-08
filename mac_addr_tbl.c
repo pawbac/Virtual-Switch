@@ -34,6 +34,7 @@ int mac_addr_tbl_lookup_data (struct Switch *sw, struct ether_addr *mac_addr, ui
     /* returns index where key is stored */
     int ret = rte_hash_lookup_data(sw->mac_addr_tbl, mac_addr, (void **) port);
 
+    printf("Port found: %d\n", *port);
     /* TODO: use rte_hash_lookup_bulk_data when possible */
     return ret;
 }
