@@ -219,14 +219,16 @@ int launch_fwd_loop(struct Switch *sw) {
                     /* Check if packet's source address exists in MAC Address Table */
                     ret = mac_addr_tbl_lookup(sw, &eth_hdr->s_addr);
 
-                    switch (ret) {
-                        case -EINVAL:
-                            printf("Invalid parameters\n");
-                            break;
-                        
-                        /* MAC address not found, add it */
-                        case -ENOENT:
-                            mac_addr_tbl_add_route(sw, &eth_hdr->s_addr, port_id); // TODO: Time - for how long
+                    if (unlikely (ret < 0)) {
+                        switch (ret) {
+                            case -EINVAL:
+                                printf("Invalid parameters\n");
+                                break;
+                            
+                            /* MAC address not found, add it */
+                            case -ENOENT:
+                                mac_addr_tbl_add_route(sw, &eth_hdr->s_addr, port_id); // TODO: Time - for how long
+                        }
                     }
 
                     /* Check if broadcast */
