@@ -51,17 +51,6 @@ struct Port* port_init(uint8_t port_id, struct rte_mempool *mb_pool) {
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup:err=%d, port=%u\n", ret, (unsigned) port_id);
 
-    /* Initialise TX buffers */
-    port->tx_buffer = rte_zmalloc_socket("tx_buffer", RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0, rte_eth_dev_socket_id(port_id));
-    if (port->tx_buffer == NULL)
-        rte_exit(EXIT_FAILURE, "Cannot allocate buffer for tx on port %u\n", (unsigned) port_id);
-
-    rte_eth_tx_buffer_init(port->tx_buffer, MAX_PKT_BURST);
-
-    ret = rte_eth_tx_buffer_set_err_callback(port->tx_buffer, rte_eth_tx_buffer_count_callback, &port->total_packets_dropped);
-    if (ret < 0)
-            rte_exit(EXIT_FAILURE, "Cannot set error callback for tx buffer on port %u\n", (unsigned) port_id);
-
     /* Initialise RX ring */
     snprintf(ring_name, 10, "rx_ring_%u", port_id);
     port->rx_ring = rte_ring_create(ring_name, RX_RING_SIZE, rte_eth_dev_socket_id(port_id), RING_F_SP_ENQ || RING_F_SC_DEQ);

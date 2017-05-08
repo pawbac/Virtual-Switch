@@ -27,10 +27,9 @@ static const struct rte_eth_conf port_conf = {
 
 struct Port {
     uint8_t port_id;
+
     /* MAC address */
     struct ether_addr ether_addr;
-
-    struct rte_eth_dev_tx_buffer *tx_buffer;
 
     struct rte_ring *rx_ring;
     struct rte_ring *tx_ring;

@@ -66,6 +66,7 @@ void pkt_description(struct ether_hdr *eth_hdr) {
             sprintf(pkt_type, "VLAN");
             break;
         default:
+            sprintf(pkt_type, "(---)");
             break;
     }
 
