@@ -5,8 +5,7 @@
 
 #include <stdint.h>
 
-/* TODO: count number of ports or make a list */
-#define MAX_NB_PORTS 3
+#define MAX_NB_PORTS 12
 
 struct Switch {
     uint8_t nb_ports;
@@ -18,8 +17,8 @@ struct Switch {
 };
 
 int switch_parse_args (void);
-int switch_init(struct Switch *s, int argc, char **argv);
-int switch_run(struct Switch *s);
+void switch_init(struct Switch *s, int argc, char **argv);
+void switch_run(struct Switch *s);
 void switch_stop(struct Switch *s);
 int launch_rx_loop(struct Switch *s);
 int launch_tx_loop(struct Switch *s);

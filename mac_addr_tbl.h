@@ -15,7 +15,7 @@ static const struct rte_hash_parameters hash_params = {
     //.socket_id = rte_socket_id(), // FIXME: 'initializer element is not constant'
 };
 
-int mac_addr_tbl_init (struct Switch *sw);
+void mac_addr_tbl_init (struct Switch *sw);
 int mac_addr_tbl_add_route (struct Switch *sw, struct ether_addr *mac_addr, uint8_t src_port);
 int mac_addr_tbl_lookup_data (struct Switch *sw, struct ether_addr *mac_addr, uint8_t *dst_port);
 int mac_addr_tbl_lookup (struct Switch *sw, struct ether_addr *mac_addr);

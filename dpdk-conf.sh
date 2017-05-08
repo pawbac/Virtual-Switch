@@ -2,7 +2,7 @@
 
 HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
 
-Pages=1024
+Pages=512
 
 cd ~/lib/dpdk/
 

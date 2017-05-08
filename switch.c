@@ -53,8 +53,8 @@
 
 static volatile bool force_quit;
 
-/* Taken from L2FWD DPDK example
- * handles the Unix signals from user
+/* Taken from the DPDK example
+ * handles the Unix signals (e.g. CTRL-C) from user
 */
 static void signal_handler(int signum) {
     if (signum == SIGINT || signum == SIGTERM) {
@@ -64,7 +64,7 @@ static void signal_handler(int signum) {
     }
 }
 
-int switch_init(struct Switch *s, int argc, char **argv) {
+void switch_init(struct Switch *sw, int argc, char **argv) {
     int ret = 0;
     int port_id = 0;
 
@@ -77,32 +77,32 @@ int switch_init(struct Switch *s, int argc, char **argv) {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
-    /* Create the mbuf pool */
-    s->pktmbuf_pool = rte_pktmbuf_pool_create("mbuf_pool", NB_MBUF, MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-    if (s->pktmbuf_pool == NULL)
-        rte_exit(EXIT_FAILURE, "Cannot init mbuf pool\n");
+    /* Create the memory pool */
+    sw->pktmbuf_pool = rte_pktmbuf_pool_create("mbuf_pool", NB_MBUF, MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+    if (sw->pktmbuf_pool == NULL)
+        rte_exit(EXIT_FAILURE, "Cannot initialise memory pool\n");
 
     /* Initialise MAC Address Table */
-    mac_addr_tbl_init(s);
+    mac_addr_tbl_init(sw);
+    if (sw->mac_addr_tbl == NULL)
+        rte_exit(EXIT_FAILURE, "Unable to create a hashmap\n");
 
     /* Count the total number of ports available */
     int nb_ports = rte_eth_dev_count();
     printf("Number of ports: %d\n", nb_ports);
     if (nb_ports == 0)
-        rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
+        rte_exit(EXIT_FAILURE, "No ports available, exiting\n");
 
     /* Initialise each port */
     for (port_id = 0; port_id < nb_ports; port_id++) {
         struct Port *port;
-        port = port_init(port_id, s->pktmbuf_pool);
-        s->ports[port_id] = port;
-        s->nb_ports = port_id + 1;
+        port = port_init(port_id, sw->pktmbuf_pool);
+        sw->ports[port_id] = port;
+        sw->nb_ports = port_id + 1;
     }	
-
-    return ret;
 }
 
-int switch_run (struct Switch *sw) {
+void switch_run (struct Switch *sw) {
     /* Launch tasks on isolated cores (requires at least 3 cores; 0 is MASTER) */
     rte_eal_remote_launch((int (*)(void*)) launch_rx_loop, sw, 1);
     rte_eal_remote_launch((int (*)(void*)) launch_tx_loop, sw, 2);
@@ -117,21 +117,19 @@ int switch_run (struct Switch *sw) {
 
     /* Wait untill all slave lcores in WAIT state */
     rte_eal_mp_wait_lcore();
-
-    return 0;
 }
 
-void switch_stop(struct Switch *s) {
+void switch_stop(struct Switch *sw) {
     uint8_t port_id;
 
     /* Stop and disable ports */
-    for (port_id = 0; port_id < s->nb_ports; port_id++) {
+    for (port_id = 0; port_id < sw->nb_ports; port_id++) {
         printf("Port_id: %d\n", port_id);
-        port_stop(s->ports[port_id]);
+        port_stop(sw->ports[port_id]);
     }
 
     /* Free the hash table */
-    mac_addr_tbl_free(s);
+    mac_addr_tbl_free(sw);
     printf("\nFinished\n");
 }
 
@@ -197,7 +195,7 @@ int launch_tx_loop(struct Switch *sw) {
 int launch_fwd_loop(struct Switch *sw) {
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     uint8_t port_id = 0;
-    uint8_t dequeued, enqueued;
+    uint8_t dequeued;
 
     while (!force_quit) {
         for (port_id = 0; port_id < sw->nb_ports; port_id++) {
@@ -232,12 +230,10 @@ int launch_fwd_loop(struct Switch *sw) {
                     }
 
                     /* Check if broadcast */
-                    if (is_broadcast_ether_addr(&eth_hdr->d_addr)) {
+                    if (is_broadcast_ether_addr(&eth_hdr->d_addr))
                         broadcast(sw, pkts_burst[pkt]);
-                    }
-                    else {
+                    else
                         unicast(sw, pkts_burst[pkt], eth_hdr);
-                    }
                 }
             }
         }

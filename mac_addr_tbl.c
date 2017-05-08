@@ -6,12 +6,9 @@
 
 #define DEBUG 1
 
-int mac_addr_tbl_init (struct Switch *sw) {
+void mac_addr_tbl_init (struct Switch *sw) {
     /* Create a new hash table. */
     sw->mac_addr_tbl = rte_hash_create(&hash_params);
-
-    if (sw->mac_addr_tbl == NULL) rte_exit(EXIT_FAILURE, "Unable to create the hashmap");
-    return 0;
 }
 
 int mac_addr_tbl_add_route (struct Switch *sw, struct ether_addr *mac_addr, uint8_t port) {
