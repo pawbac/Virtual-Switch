@@ -7,21 +7,21 @@
 #define DEBUG 0
 
 /* Broadcast traffic */
-void broadcast(struct Switch *sw, struct rte_mbuf *pkt_buffer) {
+void broadcast(struct rte_mbuf *pkt_buffer) {
     uint8_t port_id;
 
-    for (port_id = 0; port_id < sw->nb_ports; port_id++) {
-        rte_ring_enqueue_burst(sw->ports[port_id]->tx_ring, (void *) &pkt_buffer, 1);
+    for (port_id = 0; port_id < sw.nb_ports; port_id++) {
+        rte_ring_enqueue_burst(sw.ports[port_id]->tx_ring, (void *) &pkt_buffer, 1);
     }
 }
 
 /* Unicast traffic */
-void unicast(struct Switch *sw, struct rte_mbuf *pkt_buffer, struct ether_hdr *eth_hdr) {
+void unicast(struct rte_mbuf *pkt_buffer, struct ether_hdr *eth_hdr) {
     uint8_t dst_port;
     int ret;
 
     /* Get the destination port based on packet's destination address */
-    ret = mac_addr_tbl_lookup_data(sw, &eth_hdr->d_addr, &dst_port);
+    ret = mac_addr_tbl_lookup_data(&eth_hdr->d_addr, &dst_port);
 
     switch (ret) {
         case -EINVAL:
@@ -39,7 +39,7 @@ void unicast(struct Switch *sw, struct rte_mbuf *pkt_buffer, struct ether_hdr *e
         /* MAC address in MAC Address Table */
         default:
             /* Enqueue packet to the destination port's TX queue */
-            rte_ring_enqueue_burst(sw->ports[dst_port]->tx_ring, (void *) &pkt_buffer, 1); // check if next packets also for this port and send them all at the same time - efficient?
+            rte_ring_enqueue_burst(sw.ports[dst_port]->tx_ring, (void *) &pkt_buffer, 1); // check if next packets also for this port and send them all at the same time - efficient?
             break;
     }
 }

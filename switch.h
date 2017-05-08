@@ -17,13 +17,13 @@ struct Switch {
 };
 
 int switch_parse_args (void);
-void switch_init(struct Switch *s, int argc, char **argv);
-void switch_run(struct Switch *s);
-void switch_stop(struct Switch *s);
-int launch_rx_loop(struct Switch *s);
-int launch_tx_loop(struct Switch *s);
-int launch_fwd_loop(struct Switch *s);
+void switch_init(int argc, char **argv);
+void switch_run(void);
+void switch_stop(void);
+int launch_rx_loop(void);
+int launch_tx_loop(void);
+int launch_fwd_loop(void);
 
-//extern struct Switch sw;
+extern struct Switch sw;
 
 #endif /* SWITCH_H */

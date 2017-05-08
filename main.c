@@ -1,11 +1,11 @@
 #include "switch.h"
 
-int main(int argc, char **argv) {
-    struct Switch sw;
+struct Switch sw;
 
-    switch_init(&sw, argc, argv);
-    switch_run(&sw);
-    switch_stop(&sw);
+int main(int argc, char **argv) {
+    switch_init(argc, argv);
+    switch_run();
+    switch_stop();
 
     return 0;
 }

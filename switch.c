@@ -64,7 +64,7 @@ static void signal_handler(int signum) {
     }
 }
 
-void switch_init(struct Switch *sw, int argc, char **argv) {
+void switch_init(int argc, char **argv) {
     int ret = 0;
     int port_id = 0;
 
@@ -78,13 +78,13 @@ void switch_init(struct Switch *sw, int argc, char **argv) {
     signal(SIGTERM, signal_handler);
 
     /* Create the memory pool */
-    sw->pktmbuf_pool = rte_pktmbuf_pool_create("mbuf_pool", NB_MBUF, MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-    if (sw->pktmbuf_pool == NULL)
+    sw.pktmbuf_pool = rte_pktmbuf_pool_create("mbuf_pool", NB_MBUF, MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+    if (sw.pktmbuf_pool == NULL)
         rte_exit(EXIT_FAILURE, "Cannot initialise memory pool\n");
 
     /* Initialise MAC Address Table */
-    mac_addr_tbl_init(sw);
-    if (sw->mac_addr_tbl == NULL)
+    mac_addr_tbl_init();
+    if (sw.mac_addr_tbl == NULL)
         rte_exit(EXIT_FAILURE, "Unable to create a hashmap\n");
 
     /* Count the total number of ports available */
@@ -96,17 +96,17 @@ void switch_init(struct Switch *sw, int argc, char **argv) {
     /* Initialise each port */
     for (port_id = 0; port_id < nb_ports; port_id++) {
         struct Port *port;
-        port = port_init(port_id, sw->pktmbuf_pool);
-        sw->ports[port_id] = port;
-        sw->nb_ports = port_id + 1;
+        port = port_init(port_id, sw.pktmbuf_pool);
+        sw.ports[port_id] = port;
+        sw.nb_ports = port_id + 1;
     }	
 }
 
-void switch_run (struct Switch *sw) {
+void switch_run (void) {
     /* Launch tasks on isolated cores (requires at least 3 cores; 0 is MASTER) */
-    rte_eal_remote_launch((int (*)(void*)) launch_rx_loop, sw, 1);
-    rte_eal_remote_launch((int (*)(void*)) launch_tx_loop, sw, 2);
-    rte_eal_remote_launch((int (*)(void*)) launch_fwd_loop, sw, 3);	
+    rte_eal_remote_launch((int (*)(void*)) launch_rx_loop, NULL, 1);
+    rte_eal_remote_launch((int (*)(void*)) launch_tx_loop, NULL, 2);
+    rte_eal_remote_launch((int (*)(void*)) launch_fwd_loop, NULL, 3);	
 
     #if DEBUG
     uint8_t lcore_id;
@@ -119,17 +119,17 @@ void switch_run (struct Switch *sw) {
     rte_eal_mp_wait_lcore();
 }
 
-void switch_stop(struct Switch *sw) {
+void switch_stop(void) {
     uint8_t port_id;
 
     /* Stop and disable ports */
-    for (port_id = 0; port_id < sw->nb_ports; port_id++) {
+    for (port_id = 0; port_id < sw.nb_ports; port_id++) {
         printf("Port_id: %d\n", port_id);
-        port_stop(sw->ports[port_id]);
+        port_stop(sw.ports[port_id]);
     }
 
     /* Free the hash table */
-    mac_addr_tbl_free(sw);
+    mac_addr_tbl_free();
     printf("\nFinished\n");
 }
 
@@ -140,21 +140,21 @@ int switch_parse_args (void) {
     return 0;
 }
 
-int launch_rx_loop(struct Switch *sw) {
+int launch_rx_loop(void) {
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     uint8_t port_id;
     uint8_t enqueued, recv;
 
     while (!force_quit) {
-        for (port_id = 0; port_id < sw->nb_ports; port_id++) {
+        for (port_id = 0; port_id < sw.nb_ports; port_id++) {
             /* Receive packets from NIC */
             recv = rte_eth_rx_burst(port_id, 0, pkts_burst, MAX_PKT_BURST);
 
             if (recv) {
                 /* Enque packets to the port's RX ring */
-                enqueued = rte_ring_enqueue_burst(sw->ports[port_id]->rx_ring, (void *) pkts_burst, recv);
+                enqueued = rte_ring_enqueue_burst(sw.ports[port_id]->rx_ring, (void *) pkts_burst, recv);
 
-                sw->ports[port_id]->total_packets_rx += enqueued;
+                sw.ports[port_id]->total_packets_rx += enqueued;
 
                 #if DEBUG
                 printf("%d packets received & %d packets enqueued at port %d\n", enqueued, recv, port_id);
@@ -167,20 +167,20 @@ int launch_rx_loop(struct Switch *sw) {
     return 0;
 }
 
-int launch_tx_loop(struct Switch *sw) {
+int launch_tx_loop(void) {
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     uint8_t port_id;
     uint8_t dequeued, sent;
 
     while (!force_quit) {
-        for (port_id = 0; port_id < sw->nb_ports; port_id++) {
+        for (port_id = 0; port_id < sw.nb_ports; port_id++) {
             /* Dequeue packets from port's TX ring */
-            dequeued = rte_ring_dequeue_burst(sw->ports[port_id]->tx_ring, (void *) pkts_burst, MAX_PKT_BURST);
+            dequeued = rte_ring_dequeue_burst(sw.ports[port_id]->tx_ring, (void *) pkts_burst, MAX_PKT_BURST);
 
             if (dequeued) {
                 sent = rte_eth_tx_burst(port_id, 0, pkts_burst, dequeued);
 
-                sw->ports[port_id]->total_packets_tx += sent;
+                sw.ports[port_id]->total_packets_tx += sent;
 
                 #if DEBUG
                 printf("%d packets dequeued & %d packets sent at port %d\n", dequeued, sent, port_id);
@@ -192,15 +192,15 @@ int launch_tx_loop(struct Switch *sw) {
     return 0;
 }
 
-int launch_fwd_loop(struct Switch *sw) {
+int launch_fwd_loop(void) {
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     uint8_t port_id = 0;
     uint8_t dequeued;
 
     while (!force_quit) {
-        for (port_id = 0; port_id < sw->nb_ports; port_id++) {
+        for (port_id = 0; port_id < sw.nb_ports; port_id++) {
             /* Dequeue packets from port's RX ring */
-            dequeued = rte_ring_dequeue_burst(sw->ports[port_id]->rx_ring, (void *) pkts_burst, MAX_PKT_BURST);
+            dequeued = rte_ring_dequeue_burst(sw.ports[port_id]->rx_ring, (void *) pkts_burst, MAX_PKT_BURST);
 
             if (dequeued) {
                 uint8_t pkt;
@@ -217,7 +217,7 @@ int launch_fwd_loop(struct Switch *sw) {
                     #endif /* DEBUG */
 
                     /* Check if packet's source address exists in MAC Address Table */
-                    ret = mac_addr_tbl_lookup(sw, &eth_hdr->s_addr);
+                    ret = mac_addr_tbl_lookup(&eth_hdr->s_addr);
 
                     if (unlikely (ret < 0)) {
                         switch (ret) {
@@ -227,15 +227,15 @@ int launch_fwd_loop(struct Switch *sw) {
                             
                             /* MAC address not found, add it */
                             case -ENOENT:
-                                mac_addr_tbl_add_route(sw, &eth_hdr->s_addr, port_id); // TODO: Time - for how long
+                                mac_addr_tbl_add_route(&eth_hdr->s_addr, port_id); // TODO: Time - for how long
                         }
                     }
 
                     /* Check if broadcast */
                     if (is_broadcast_ether_addr(&eth_hdr->d_addr))
-                        broadcast(sw, pkts_burst[pkt]);
+                        broadcast(pkts_burst[pkt]);
                     else
-                        unicast(sw, pkts_burst[pkt], eth_hdr);
+                        unicast(pkts_burst[pkt], eth_hdr);
                 }
             }
         }
