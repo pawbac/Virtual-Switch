@@ -46,6 +46,11 @@
 #define NB_MBUF   8192
 #define MEMPOOL_CACHE_SIZE 256
 
+#define DEBUG 0
+
+/* Print flowing traffic to the string */
+#define FLOW 1
+
 static volatile bool force_quit;
 
 /* Taken from L2FWD DPDK example
@@ -140,17 +145,22 @@ int switch_parse_args (void) {
 int launch_rx_loop(struct Switch *sw) {
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     uint8_t port_id;
-    uint8_t recv, enqueued;
+    uint8_t enqueued, recv;
 
     while (!force_quit) {
         for (port_id = 0; port_id < sw->nb_ports; port_id++) {
+            /* Receive packets from NIC */
             recv = rte_eth_rx_burst(port_id, 0, pkts_burst, MAX_PKT_BURST);
 
             if (recv) {
-                /* Enque packets to the RX ring */
+                /* Enque packets to the port's RX ring */
                 enqueued = rte_ring_enqueue_burst(sw->ports[port_id]->rx_ring, (void *) pkts_burst, recv);
 
                 sw->ports[port_id]->total_packets_rx += enqueued;
+
+                #if DEBUG
+                printf("%d packets received & %d packets enqueued at port %d\n", enqueued, recv, port_id);
+                #endif /* DEBUG */
             }
             
         }
@@ -170,17 +180,13 @@ int launch_tx_loop(struct Switch *sw) {
             dequeued = rte_ring_dequeue_burst(sw->ports[port_id]->tx_ring, (void *) pkts_burst, MAX_PKT_BURST);
 
             if (dequeued) {
-                #if DEBUG
-                struct ether_hdr *eth_hdr;
-
-                eth_hdr = rte_pktmbuf_mtod(pkts_burst[0], struct ether_hdr *);
-                printf("In TX loop: ");
-                pkt_description(eth_hdr);
-                #endif
-                printf("%d packets dequeued at port %d\n", dequeued, port_id);
                 sent = rte_eth_tx_burst(port_id, 0, pkts_burst, dequeued);
-                printf("%d packets sent\n", sent);
+
                 sw->ports[port_id]->total_packets_tx += sent;
+
+                #if DEBUG
+                printf("%d packets dequeued & %d packets sent at port %d\n", dequeued, sent, port_id);
+                #endif /* DEBUG */
             }
         }
     }
@@ -208,7 +214,7 @@ int launch_fwd_loop(struct Switch *sw) {
                     /* Export packet's header */
                     eth_hdr = rte_pktmbuf_mtod(pkts_burst[pkt], struct ether_hdr *);
 
-                    #ifdef DEBUG
+                    #ifdef FLOW
                     pkt_description(eth_hdr);
                     #endif /* DEBUG */
 
@@ -227,11 +233,9 @@ int launch_fwd_loop(struct Switch *sw) {
 
                     /* Check if broadcast */
                     if (is_broadcast_ether_addr(&eth_hdr->d_addr)) {
-                        printf("Broadcast\n");
                         broadcast(sw, pkts_burst[pkt]);
                     }
                     else {
-                        printf("Unicast\n");
                         unicast(sw, pkts_burst[pkt], eth_hdr);
                     }
                 }

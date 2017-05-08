@@ -5,8 +5,6 @@
 
 #include <stdint.h>
 
-#define DEBUG 1
-
 /* TODO: count number of ports or make a list */
 #define MAX_NB_PORTS 3
 
@@ -14,7 +12,9 @@ struct Switch {
     uint8_t nb_ports;
     struct rte_mempool *pktmbuf_pool;
     struct Port *ports[MAX_NB_PORTS];
+
     struct rte_hash *mac_addr_tbl;
+    uint8_t dst_port_list[1024];
 };
 
 int switch_parse_args (void);

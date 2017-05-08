@@ -5,8 +5,8 @@
 
 #include <rte_ether.h>
 
-int broadcast(struct Switch *sw, struct rte_mbuf *pkts_burst);
-int unicast(struct Switch *sw, struct rte_mbuf *pkts_burst, struct ether_hdr *eth_hdr);
+void broadcast(struct Switch *sw, struct rte_mbuf *pkts_burst);
+void unicast(struct Switch *sw, struct rte_mbuf *pkts_burst, struct ether_hdr *eth_hdr);
 
 void pkt_description(struct ether_hdr *eth_hdr);
 
